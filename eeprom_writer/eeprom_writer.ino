@@ -78,7 +78,7 @@ public:
     }
     
     T get() {
-        T data;
+        T data = 0;
         for (int i = this->pinCount - 1; i >= 0; i--) {
             pinMode(this->pins[i], INPUT);
             data |= digitalRead(this->pins[i]);
@@ -99,8 +99,8 @@ void write(uint16_t address, uint8_t data) {
     digitalWrite(OE, DISABLE);
     addressBus->set(address);
     digitalWrite(CE, ENABLE);
-    digitalWrite(WE, ENABLE);
     dataBus->set(data);
+    digitalWrite(WE, ENABLE);
     delayMicroseconds(2);
     digitalWrite(WE, DISABLE);
     digitalWrite(CE, DISABLE);
@@ -153,8 +153,8 @@ void writeBuffer(uint16_t address, bool locked) {
     for (int i = 0; i < BUFFER_SIZE; i++) {
         addressBus->set(address + i);
         digitalWrite(CE, ENABLE);
-        digitalWrite(WE, ENABLE);
         dataBus->set(buffer[i]);
+        digitalWrite(WE, ENABLE);
         delayMicroseconds(2);
         digitalWrite(WE, DISABLE);
         digitalWrite(CE, DISABLE);
@@ -204,14 +204,13 @@ void setup() {
     
     dataBus->set_mode(INPUT_PULLUP);
     
-    buffer[0] = 0x55;
-    Serial.println((int)buffer[0]);
+    buffer[0] = (0x55 << 1);
+    Serial.println((int)buffer[0], HEX);
     
-    //unlock();
+    unlock();
     writeBuffer(0x40, true);
-    writeBuffer(0x40, true);
     //unlock();
-    //writeBuffer(0, true);
+    writeBuffer(0, true);
     
     
     Serial.print("[0x");
@@ -224,12 +223,15 @@ void setup() {
     Serial.print("] = 0x");
     Serial.println((int)read(0x40), HEX);
     
-    /*for (uint16_t i = 0; i < 0x8000; i++) {
+    Serial.println();
+    delay(1000);
+    
+    for (uint16_t i = 0; i < 0x8000; i++) {
         Serial.print("[0x");
         Serial.print(i, HEX);
         Serial.print("] = 0x");
         Serial.println((int)read(i), HEX);
-    }*/
+    }
     
     /*unlockRom();
     for (int i = 0; i < BUFFER_SIZE; i++) {
