@@ -1,6 +1,8 @@
 // SERIAL = 0xC000
 // EEPROM is hardwired for 0xE000 = 0x0000
 
+#define LED     13
+
 #define ADDR0   53
 #define ADDR1   51
 #define ADDR2   49
@@ -90,21 +92,37 @@ public:
     }
 };
 
+enum class Protocol : uint8_t {
+    FAIL,
+    END,
+    READ,
+    WRITE,
+    DUMP
+};
+
 uint8_t buffer[BUFFER_SIZE] = { 0 };
 
 Bus<uint8_t> *dataBus;
 Bus<uint16_t> *addressBus;
 
-void write(uint16_t address, uint8_t data) {
+inline void blink() {
+    digitalWrite(13, HIGH);
+    delay(500);
+    digitalWrite(13, LOW);
+    delay(500);
+}
+
+inline void write(uint16_t address, uint8_t data) {
     digitalWrite(OE, DISABLE);
     addressBus->set(address);
     digitalWrite(CE, ENABLE);
-    dataBus->set(data);
     digitalWrite(WE, ENABLE);
+    dataBus->set(data);
     delayMicroseconds(2);
     digitalWrite(WE, DISABLE);
     digitalWrite(CE, DISABLE);
-    dataBus->set_mode(INPUT_PULLUP);
+    delayMicroseconds(2);
+    //dataBus->set_mode(INPUT_PULLUP);
 }
 
 uint8_t read(uint16_t address) {
@@ -129,7 +147,7 @@ inline void unlock() {
     write(0x5555, 0x20);
     //delayMicroseconds(10);
     //delay(10);
-    delay(10);
+    //delay(10);
 }
 
 void writeBuffer(uint16_t address, bool locked) {
@@ -138,7 +156,7 @@ void writeBuffer(uint16_t address, bool locked) {
         write(0x5555, 0xAA);
         write(0x2AAA, 0x55);
         write(0x5555, 0xA0);
-        delayMicroseconds(2);
+        //delayMicroseconds(2);
     }
     /*else {
         write(0x5555, 0xAA);
@@ -159,7 +177,7 @@ void writeBuffer(uint16_t address, bool locked) {
         digitalWrite(WE, DISABLE);
         digitalWrite(CE, DISABLE);
         //delayMicroseconds(2);
-        dataBus->set_mode(INPUT_PULLUP);
+        //dataBus->set_mode(INPUT_PULLUP);
     }
     delay(10);
 }
@@ -178,8 +196,36 @@ inline void exitProductID() {
     delay(10);
 }
 
+inline void erase() {
+    write(0x5555, 0xAA);
+    write(0x2AAA, 0x55);
+    write(0x5555, 0x80);
+    write(0x5555, 0xAA);
+    write(0x2AAA, 0x55);
+    write(0x5555, 0x10);
+    
+    delay(50);
+}
+
+template <typename T>
+inline T receiveData() {
+    T data = 0;
+    for (int i = 0; i < sizeof(T); i++) {
+        if (i) {
+            data <<= 8;
+        }
+        while (!Serial.available());
+        data |= (uint8_t)Serial.read();
+    }
+    
+    return data;
+}
+
 void setup() {
     Serial.begin(115200);
+    
+    pinMode(LED, OUTPUT);
+    digitalWrite(LED, LOW);
     
     pinMode(CE, OUTPUT);
     digitalWrite(CE, DISABLE);
@@ -203,73 +249,37 @@ void setup() {
     delete pins;
     
     dataBus->set_mode(INPUT_PULLUP);
+    //delay(2000);
     
-    buffer[0] = (0x55 << 1);
-    Serial.println((int)buffer[0], HEX);
-    
-    unlock();
-    writeBuffer(0x40, true);
-    //unlock();
-    writeBuffer(0, true);
-    
-    
-    Serial.print("[0x");
-    Serial.print(0, HEX);
-    Serial.print("] = 0x");
-    Serial.println((int)read(0), HEX);
-    
-    Serial.print("[0x");
-    Serial.print(0x40, HEX);
-    Serial.print("] = 0x");
-    Serial.println((int)read(0x40), HEX);
-    
-    Serial.println();
-    delay(1000);
-    
-    for (uint16_t i = 0; i < 0x8000; i++) {
-        Serial.print("[0x");
-        Serial.print(i, HEX);
-        Serial.print("] = 0x");
-        Serial.println((int)read(i), HEX);
-    }
-    
-    /*unlockRom();
-    for (int i = 0; i < BUFFER_SIZE; i++) {
-        write(i, 0x55);
-    }
-    delay(1000);*/
-    //write(0, 0x55);
-    //exitProductID();
-    //buffer[0] = 0x55;
-    //writeBuffer(0, true);
-    
-    //Serial.println((int)read(0), HEX);
-    /*delay(1000);
-    Serial.println((int)read(0), HEX);
-    Serial.println((int)read(1), HEX);
-    Serial.println((int)read(2), HEX);*/
-    
-    //unlockRom();
-    
-    /*buffer[0] = 23;
-    buffer[1] = 43;
-    buffer[2] = 128;
-    buffer[3] = 255;
-    buffer[4] = 255;
-    buffer[5] = 65;
-    
-    /*writeBuffer(0);
-    
-    for (int i = 0; i < 6; i++) {
-        Serial.println((int)read(i));
-    }*/
-    /*write(345, 255);
-    delay(1000);
-    Serial.println((int)read(345));
-    //addressBus->set(0x5555);
-    //dataBus->set(0x55);*/
+    Serial.println("Ready");
 }
 
 void loop() {
+    uint16_t address = 0;
+    uint8_t data = 0;
     
+    if (Serial.available()) {
+        Protocol command = (Protocol)Serial.read();
+        
+        switch (command) {
+        case Protocol::READ:
+            address = receiveData<uint16_t>();
+            data = read(address);
+            Serial.print((char)data);
+            Serial.print((char)Protocol::END);
+            
+            break;
+        case Protocol::WRITE:
+            address = receiveData<uint16_t>();
+            for (int i = 0; i < BUFFER_SIZE; i++) {
+                buffer[i] = receiveData<uint8_t>();
+            }
+            writeBuffer(address, false);
+            break;
+        default:
+            Serial.print("Received ");
+            Serial.println((int)command);
+            break;
+        }
+    }
 }
