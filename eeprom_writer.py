@@ -23,51 +23,40 @@ ser = serial.Serial(port, baudrate=115200)
 def PAGE_SIZE(): return 64
 def ROM_SIZE(): return 32768
 
+def page(address): return (address >> 6) & 0x3FF
+def page_offset(address): return address & 0x3F
+
 def write(address, fname):
-    if !os.path.isfile(fname):
+    if not os.path.isfile(fname):
         print 'Not a file'
         return Protocol.FAIL
         
     fsize = os.path.getsize(fname)
-    '''with open(fname, 'r') as f:
-        ser.write('w'.encode('utf-8'))
-        ser.write(chr((address >> 8) & 0xFF))
-        ser.write(chr(address & 0xFF))
+    
+    bufs = {}
+    for pg in range(page(address), page(address + fsize) + 1):
+        print pg
+        bufs[pg] = [0xFF] * PAGE_SIZE()
+    
+    with open(fname, 'r') as f:
+        for current_address in range(address, address + fsize):
+            bufs[page(current_address)][page_offset(current_address)] = ord(f.read(1))
+    
+    for i in bufs:
+        page_address = i << 6
+        ser.write(chr(Protocol.WRITE.value))
+        ser.write(chr(page_address >> 8))
+        ser.write(chr(page_address & 0xFF))
+        for b in bufs[i]:
+            ser.write(chr(b))
         
-        ser.write(chr((fsize >> 8) & 0xFF))
-        ser.write(chr(fsize & 0xFF))
-        b = f.read(1)
-        print type(b)
-        while b != '':
-            #print b.encode('utf-8')
-            #ser.write(chr(b))#.encode('utf-8'))
-            ser.write(b)
-            b = f.read(1)'''
+        #print bufs[i]
             
-        '''while (fsize > 0):
-            data_size = PAGE_SIZE()
-            page_offset = address % PAGE_SIZE()
-            if (data_size > fsize):
-                data_size = fsize
-                
-            ser.write(chr((data_size >> 8) & 0xFF))
-            ser.write(chr(data_size & 0xFF))
-            
-            for i in range(data_size):
-                b = f.read(1)
-                ser.write(b.encode('utf-8'))
-            
-            processed = ord(ser.read(size=1))
-            print processed
-            fsize -= data_size
-            
-        ser.write(chr(0))'''
-            
-    result = ord(ser.read(size=1))
-    if (result != Protocol.END.value):
-        print hex(result)
-        raise ProtocolException('Unexpected protocol message while awaiting response', end)
-    return result
+        result = ord(ser.read(size=1))
+        if (result != Protocol.END.value):
+            print hex(result)
+            raise ProtocolException('Unexpected protocol message while awaiting response', end)
+    return Protocol.END
 
 def read(address):
     print address
@@ -80,7 +69,7 @@ def read(address):
     result = ord(ser.read(size = 1))
     if (result != Protocol.END.value):
         print hex(result)
-        raise ProtocolException('Unexpected protocol message while awaiting response', end)
+        raise ProtocolException('Unexpected protocol message while awaiting response.', end)
     return out
     
 def poke(address, data):
@@ -91,10 +80,16 @@ def poke(address, data):
     result = ord(ser.read(size=1))
     return result
     
-def dump(fname='dump'):
-    ser.write('d'.encode('utf-8'))
+def dump(fname='dump.bin'):
+    ser.write(chr(Protocol.DUMP.value))
     with open(fname, 'w') as f:
         f.write(ser.read(size=ROM_SIZE()))
+    end = ord(ser.read(size=1))
+    if (end != Protocol.END.value):
+        print hex(end)
+        raise ProtocolException('Unexpected protocol message while awaiting response.', end)
+        
+    return end
 
 def main(args):
     print ser.read_until()
@@ -131,11 +126,11 @@ def main(args):
                 dump()
             elif uinput[0] == 'help' or uinput[0] == 'h':
                 print 'Available commands'
-                print '\tread [address]'
-                #print '\tpoke [address] [data]'
-                print '\twrite [address] [file]'
-                print '\tlock'
-                print '\tunlock'
+                print '\tread address1 [address2]'
+                #print '\tpoke address [data]'
+                print '\twrite address file'
+                #print '\tlock'
+                #print '\tunlock'
                 print '\thelp'
                 print '\tquit'
             else:

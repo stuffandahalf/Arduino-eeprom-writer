@@ -35,6 +35,7 @@
 #define ENABLE  LOW
 #define DISABLE HIGH
 
+#define ROM_SIZE    32768
 #define BUFFER_SIZE 64
 
 template <typename T>
@@ -275,6 +276,14 @@ void loop() {
                 buffer[i] = receiveData<uint8_t>();
             }
             writeBuffer(address, false);
+            Serial.print((char)Protocol::END);
+            break;
+            
+        case Protocol::DUMP:
+            for (unsigned int i = 0; i < ROM_SIZE; i++) {
+                Serial.print((char)read(i));
+            }
+            Serial.print((char)Protocol::END);
             break;
         default:
             Serial.print("Received ");
