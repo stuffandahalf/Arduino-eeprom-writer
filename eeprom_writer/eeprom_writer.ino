@@ -1,3 +1,13 @@
+/*
+ * This arduino program is written by Gregory Norton <Gregory.Norton@me.com>
+ * 
+ * This is the arduino firmware for an EEPROM writer
+ * intended for use with 29C256 EEPROM chips, but
+ * can likely be adapted for other chips.
+ * 
+ * This firmware is intended for Arduino mega 2560s
+ */
+
 // SERIAL = 0xC000
 // EEPROM is hardwired for 0xE000 = 0x0000
 

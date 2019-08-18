@@ -1,6 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+'''
+This program written by Gregory Norton <Gregory.Norton@me.com>
+
+This program is used to interface with an
+arduino running the included firmware. This
+program is intended for use with 29C256 EEPROM,
+but can likely be adapted for use with other chips.
+'''
+
 import serial
 from enum import Enum
 import os
@@ -28,14 +37,13 @@ def page_offset(address): return address & 0x3F
 
 def write(address, fname):
     if not os.path.isfile(fname):
-        print 'Not a file'
+        print 'File does not exist'
         return Protocol.FAIL
         
     fsize = os.path.getsize(fname)
     
     bufs = {}
     for pg in range(page(address), page(address + fsize) + 1):
-        print pg
         bufs[pg] = [0xFF] * PAGE_SIZE()
     
     with open(fname, 'r') as f:
@@ -49,8 +57,6 @@ def write(address, fname):
         ser.write(chr(page_address & 0xFF))
         for b in bufs[i]:
             ser.write(chr(b))
-        
-        #print bufs[i]
             
         result = ord(ser.read(size=1))
         if (result != Protocol.END.value):
@@ -72,14 +78,6 @@ def read(address):
         raise ProtocolException('Unexpected protocol message while awaiting response.', end)
     return out
     
-def poke(address, data):
-    ser.write('p'.encode('utf-8'))
-    ser.write(chr((address >> 8) & 0xFF))
-    ser.write(chr(address & 0xFF))
-    ser.write(chr(data & 0xFF))
-    result = ord(ser.read(size=1))
-    return result
-    
 def dump(fname='dump.bin'):
     ser.write(chr(Protocol.DUMP.value))
     with open(fname, 'w') as f:
@@ -93,6 +91,8 @@ def dump(fname='dump.bin'):
 
 def main(args):
     print ser.read_until()
+    print 'Type help for information on available commands'
+    print ''
     
     #ser.write(chr(Protocol.ADDRESS.value))
     #print ser.read_until()
@@ -126,7 +126,7 @@ def main(args):
                 dump()
             elif uinput[0] == 'help' or uinput[0] == 'h':
                 print 'Available commands'
-                print '\tread address1 [address2]'
+                print '\tread address1'# [address2]'
                 #print '\tpoke address [data]'
                 print '\twrite address file'
                 #print '\tlock'
